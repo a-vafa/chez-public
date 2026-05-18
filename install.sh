@@ -40,16 +40,19 @@ install_chezmoi() {
 }
 
 auth_gh() {
-    if gh auth status >/dev/null 2>&1; then
+    if ! gh auth status >/dev/null 2>&1; then
+        log "Starting GitHub device-code auth."
+        log "Open https://github.com/login/device in your LOCAL browser and paste the 8-char code printed below."
+        # BROWSER=true: gh tries to xdg-open a browser, which fails on headless
+        # boxes (SSH/VPS/CI). Pointing it at /usr/bin/true makes the launch a
+        # silent no-op; the URL + code are already echoed for the user.
+        BROWSER=true gh auth login --hostname github.com --web
+    else
         log "gh already authenticated"
-        return 0
     fi
-    log "Starting GitHub device-code auth."
-    log "Open https://github.com/login/device in your LOCAL browser and paste the 8-char code printed below."
-    # BROWSER=true: gh tries to xdg-open a browser, which fails on headless
-    # boxes (SSH/VPS/CI). Pointing it at /usr/bin/true makes the launch a
-    # silent no-op; the URL + code are already echoed for the user.
-    BROWSER=true gh auth login --hostname github.com --web
+    # Always (re-)wire git to use gh's credential helper so `git clone` of
+    # private repos works without prompting for username/password. Idempotent.
+    gh auth setup-git
 }
 
 setup_bitwarden_optional() {

@@ -36,11 +36,16 @@ function Install-Chezmoi {
 
 function Auth-Gh {
     & gh auth status 2>$null
-    if ($LASTEXITCODE -eq 0) { Log 'gh already authenticated'; return }
-    Log 'Starting GitHub device-code auth (paste the 8-char code in your browser)...'
-    # --git-protocol https omitted for compat with older gh versions; default is https
-    & gh auth login --hostname github.com --web
-    if ($LASTEXITCODE -ne 0) { Die 'gh auth failed' }
+    if ($LASTEXITCODE -ne 0) {
+        Log 'Starting GitHub device-code auth (paste the 8-char code in your browser)...'
+        & gh auth login --hostname github.com --web
+        if ($LASTEXITCODE -ne 0) { Die 'gh auth failed' }
+    } else {
+        Log 'gh already authenticated'
+    }
+    # Always wire git to use gh's credentials so private clones don't prompt
+    & gh auth setup-git
+    if ($LASTEXITCODE -ne 0) { Warn 'gh auth setup-git failed (private clones may prompt for password)' }
 }
 
 function Setup-Bitwarden-Optional {
