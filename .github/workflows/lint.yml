@@ -1,0 +1,49 @@
+name: lint
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: shellcheck install.sh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -y && sudo apt-get install -y shellcheck
+      - run: shellcheck -S error install.sh
+
+  pwsh:
+    name: PSScriptAnalyzer install.ps1
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          $issues = Invoke-ScriptAnalyzer -Path install.ps1 -Severity Error
+          if ($issues) { $issues | Format-Table -AutoSize; exit 1 }
+
+  bash_syntax:
+    name: bash -n install.sh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n install.sh
+
+  pwsh_syntax:
+    name: pwsh syntax-check install.ps1
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: |
+          # Tokenize: errors here are real syntax problems
+          $errs = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("install.ps1", [ref]$null, [ref]$errs) | Out-Null
+          if ($errs) { $errs | Format-List; exit 1 }
