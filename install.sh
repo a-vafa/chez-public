@@ -44,10 +44,12 @@ auth_gh() {
         log "gh already authenticated"
         return 0
     fi
-    log "Starting GitHub device-code auth (paste the 8-char code in your browser)..."
-    # --git-protocol https is omitted: defaults to https, and older gh (Ubuntu
-    # 22.04 ships ~2.4) does not know the flag.
-    gh auth login --hostname github.com --web
+    log "Starting GitHub device-code auth."
+    log "Open https://github.com/login/device in your LOCAL browser and paste the 8-char code printed below."
+    # BROWSER=true: gh tries to xdg-open a browser, which fails on headless
+    # boxes (SSH/VPS/CI). Pointing it at /usr/bin/true makes the launch a
+    # silent no-op; the URL + code are already echoed for the user.
+    BROWSER=true gh auth login --hostname github.com --web
 }
 
 setup_bitwarden_optional() {
