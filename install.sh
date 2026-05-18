@@ -61,7 +61,9 @@ setup_bitwarden_optional() {
     need_cmd bw || return 0
 
     # We're being piped from curl, so stdin isn't a TTY — read from /dev/tty.
-    if [[ ! -r /dev/tty ]]; then
+    # `[[ -r /dev/tty ]]` only checks mode bits (rw-rw-rw-) and lies in CI
+    # where the file exists but cannot be opened. Probe by actually opening it.
+    if ! true </dev/tty 2>/dev/null; then
         warn "No TTY available; skipping Bitwarden setup."
         warn "Run later: bw login && export BW_SESSION=\$(bw unlock --raw) && chezmoi apply"
         return 0
@@ -99,7 +101,12 @@ drop_into_zsh() {
     # stdin to /dev/tty. The user sees their fully-loaded zsh prompt the moment
     # bootstrap finishes; Ctrl+D returns them to the parent (login) shell.
     need_cmd zsh || { warn "zsh not found; bootstrap done, run 'exec zsh' manually if installed later."; return 0; }
-    [[ -r /dev/tty ]] || { log "No TTY (likely CI/non-interactive). Open a new shell to use zsh."; return 0; }
+    # Probe by opening; mode-bit check is unreliable (CI has /dev/tty rw-rw-rw-
+    # but it cannot actually be opened without a controlling terminal).
+    if ! true </dev/tty 2>/dev/null; then
+        log "No TTY (likely CI/non-interactive). Open a new shell to use zsh."
+        return 0
+    fi
     log "Bootstrap done. Dropping you into zsh now..."
     exec zsh -l </dev/tty
 }
