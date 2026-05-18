@@ -42,10 +42,45 @@ function Auth-Gh {
     if ($LASTEXITCODE -ne 0) { Die 'gh auth failed' }
 }
 
+function Setup-Bitwarden-Optional {
+    # bw should be installed by chezmoi's package step if the user's profile
+    # includes it. If not present, skip silently.
+    if (-not (Has-Cmd bw)) { return }
+
+    Write-Host ''
+    $answer = Read-Host 'Set up Bitwarden secrets now? [y/N]'
+    if ($answer -notmatch '^(y|Y|yes|YES)$') {
+        Log 'Skipped. To enable later: bw login; $env:BW_SESSION = bw unlock --raw; chezmoi apply'
+        return
+    }
+
+    & bw login --check 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Log "Running 'bw login' (email + master password)..."
+        & bw login
+        if ($LASTEXITCODE -ne 0) { Warn 'bw login failed; skipping'; return }
+    }
+
+    Log 'Unlocking vault...'
+    $session = & bw unlock --raw
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($session)) {
+        Warn 'bw unlock failed; skipping'; return
+    }
+    $env:BW_SESSION = $session
+
+    Log 'Re-applying chezmoi with secrets...'
+    & chezmoi apply
+    if ($LASTEXITCODE -ne 0) { Warn 'chezmoi apply failed after unlock' }
+
+    Warn 'BW_SESSION is set for this bootstrap only. New shells will start locked.'
+    Warn 'Unlock again with: $env:BW_SESSION = bw unlock --raw'
+}
+
 Install-Gh
 Install-Chezmoi
 Auth-Gh
 Log "Bootstrapping dotfiles from $PrivateRepo..."
 & chezmoi init --apply $PrivateRepo
 if ($LASTEXITCODE -ne 0) { Die 'chezmoi init failed' }
+Setup-Bitwarden-Optional
 Log 'Done. Open a new shell.'

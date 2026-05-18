@@ -48,6 +48,44 @@ auth_gh() {
     gh auth login --hostname github.com --git-protocol https --web
 }
 
+setup_bitwarden_optional() {
+    # bw should have been installed by chezmoi's package step if the user's
+    # profile/overlay includes it. If not present, skip silently.
+    need_cmd bw || return 0
+
+    # We're being piped from curl, so stdin isn't a TTY — read from /dev/tty.
+    if [[ ! -r /dev/tty ]]; then
+        warn "No TTY available; skipping Bitwarden setup."
+        warn "Run later: bw login && export BW_SESSION=\$(bw unlock --raw) && chezmoi apply"
+        return 0
+    fi
+
+    local answer
+    printf '\n'
+    read -rp "Set up Bitwarden secrets now? [y/N] " answer </dev/tty || answer=""
+    case "${answer:-N}" in
+        y|Y|yes|YES) ;;
+        *)  log "Skipped. To enable later: bw login && export BW_SESSION=\$(bw unlock --raw) && chezmoi apply"
+            return 0 ;;
+    esac
+
+    if ! bw login --check >/dev/null 2>&1; then
+        log "Running 'bw login' (email + master password)..."
+        bw login </dev/tty || { warn "bw login failed; skipping"; return 0; }
+    fi
+
+    log "Unlocking vault..."
+    local session
+    session=$(bw unlock --raw </dev/tty) || { warn "bw unlock failed; skipping"; return 0; }
+    export BW_SESSION="$session"
+
+    log "Re-applying chezmoi with secrets..."
+    chezmoi apply
+
+    warn "BW_SESSION is set for this bootstrap only. New shells will start locked."
+    warn "Unlock again with: export BW_SESSION=\$(bw unlock --raw)"
+}
+
 main() {
     need_cmd curl || die "curl is required (install it first)"
     need_cmd git  || die "git is required (install it first)"
@@ -56,6 +94,7 @@ main() {
     auth_gh
     log "Bootstrapping dotfiles from ${PRIVATE_REPO}..."
     chezmoi init --apply "${PRIVATE_REPO}"
+    setup_bitwarden_optional
     log "Done. Open a new shell."
 }
 
