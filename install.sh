@@ -45,7 +45,9 @@ auth_gh() {
         return 0
     fi
     log "Starting GitHub device-code auth (paste the 8-char code in your browser)..."
-    gh auth login --hostname github.com --git-protocol https --web
+    # --git-protocol https is omitted: defaults to https, and older gh (Ubuntu
+    # 22.04 ships ~2.4) does not know the flag.
+    gh auth login --hostname github.com --web
 }
 
 setup_bitwarden_optional() {
