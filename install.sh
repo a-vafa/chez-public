@@ -93,6 +93,17 @@ setup_bitwarden_optional() {
     warn "Unlock again with: export BW_SESSION=\$(bw unlock --raw)"
 }
 
+drop_into_zsh() {
+    # Magic: if we have a usable TTY and zsh exists, replace this bash subshell
+    # with an interactive zsh. Works through `curl | bash` because we re-bind
+    # stdin to /dev/tty. The user sees their fully-loaded zsh prompt the moment
+    # bootstrap finishes; Ctrl+D returns them to the parent (login) shell.
+    need_cmd zsh || { warn "zsh not found; bootstrap done, run 'exec zsh' manually if installed later."; return 0; }
+    [[ -r /dev/tty ]] || { log "No TTY (likely CI/non-interactive). Open a new shell to use zsh."; return 0; }
+    log "Bootstrap done. Dropping you into zsh now..."
+    exec zsh -l </dev/tty
+}
+
 main() {
     need_cmd curl || die "curl is required (install it first)"
     need_cmd git  || die "git is required (install it first)"
@@ -102,7 +113,7 @@ main() {
     log "Bootstrapping dotfiles from ${PRIVATE_REPO}..."
     chezmoi init --apply "${PRIVATE_REPO}"
     setup_bitwarden_optional
-    log "Done. Open a new shell."
+    drop_into_zsh
 }
 
 main "$@"
